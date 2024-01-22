@@ -24,6 +24,7 @@ import './theme/variables.css';
 import { ItemEdit, ItemList } from './todo';
 import { ItemProvider } from './todo/ItemProvider';
 import { AuthProvider, Login, PrivateRoute } from './auth';
+import { Signup } from './auth/Signup';
 
 setupIonicReact();
 
@@ -33,6 +34,7 @@ const App: React.FC = () => (
       <IonRouterOutlet>
         <AuthProvider>
           <Route path="/login" component={Login} exact={true}/>
+          <Route path="/signup" component={Signup} exact={true}/>
           <ItemProvider>
             <PrivateRoute path="/items" component={ItemList} exact={true}/>
             <PrivateRoute path="/item" component={ItemEdit} exact={true}/>

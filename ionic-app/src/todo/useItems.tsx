@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useContext, useEffect, useReducer } from 'react';
 import { getLogger } from '../core';
 import { ItemProps } from './ItemProps';
 import { getItems } from './itemApi';
+import { AuthContext } from '../auth';
 
 const log = getLogger('useItems');
 
@@ -45,6 +46,7 @@ const reducer: (state: ItemsState, action: ActionProps) => ItemsState =
   };
 
 export const useItems: () => ItemsProps = () => {
+  const { token } = useContext(AuthContext);
   const [state, dispatch] = useReducer(reducer, initialState);
   const { items, fetching, fetchingError } = state;
   const addItem = useCallback(() => {
@@ -70,7 +72,7 @@ export const useItems: () => ItemsProps = () => {
       try {
         log('fetchItems started');
         dispatch({ type: FETCH_ITEMS_STARTED });
-        const items = await getItems();
+        const items = await getItems(token);
         log('fetchItems succeeded');
         if (!canceled) {
           dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });

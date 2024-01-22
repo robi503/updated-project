@@ -3,17 +3,19 @@ import { RouteComponentProps } from 'react-router';
 import { IonButton, IonContent, IonHeader, IonInput, IonLoading, IonPage, IonTitle, IonToolbar } from '@ionic/react';
 import { AuthContext } from './AuthProvider';
 import { getLogger } from '../core';
+import { signup } from './authApi';
 
-const log = getLogger('Login');
 
-interface LoginState {
+const log = getLogger('Create account');
+
+interface SignupState {
   username?: string;
   password?: string;
 }
 
-export const Login: React.FC<RouteComponentProps> = ({ history }) => {
-  const { isAuthenticated, isAuthenticating, login, authenticationError } = useContext(AuthContext);
-  const [state, setState] = useState<LoginState>({});
+export const Signup: React.FC<RouteComponentProps> = ({ history }) => {
+  const { isAuthenticated, isAuthenticating, authenticationError } = useContext(AuthContext);
+  const [state, setState] = useState<SignupState>({});
   const { username, password } = state;
   const handlePasswwordChange = useCallback((e: any) => setState({
     ...state,
@@ -23,13 +25,17 @@ export const Login: React.FC<RouteComponentProps> = ({ history }) => {
     ...state,
     username: e.detail.value || ''
   }), [state]);
-  const handleLogin = useCallback(() => {
-    log('handleLogin...');
-    login?.(username, password);
+  const handleSignup = useCallback(async () => {
+    log('handleSignup...');
+    try {
+      const response = await signup(username, password);
+      log('Signup successful', response);
+      // Handle post-signup logic here (e.g., redirect to login or auto-login)
+    } catch (error) {
+      log('Signup failed', error);
+      // Handle signup error here
+    }
   }, [username, password]);
-  const handleCreateAccount = () => {
-    history.push('/signup');
-  };
   log('render');
   useEffect(() => {
     if (isAuthenticated) {
@@ -41,7 +47,7 @@ export const Login: React.FC<RouteComponentProps> = ({ history }) => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>Login</IonTitle>
+          <IonTitle>Create account</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent>
@@ -55,10 +61,9 @@ export const Login: React.FC<RouteComponentProps> = ({ history }) => {
           onIonChange={handlePasswwordChange}/>
         <IonLoading isOpen={isAuthenticating}/>
         {authenticationError && (
-          <div>{authenticationError.message || 'Failed to authenticate'}</div>
+          <div>{authenticationError.message || 'Failed to create account'}</div>
         )}
-        <IonButton onClick={handleLogin}>Login</IonButton>
-        <IonButton onClick={handleCreateAccount}>Create Account</IonButton>
+        <IonButton onClick={handleSignup}>Create account</IonButton>
       </IonContent>
     </IonPage>
   );
