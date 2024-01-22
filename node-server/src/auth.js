@@ -50,3 +50,22 @@ authRouter.post('/login', async (ctx) => {
     ctx.response.status = 400; // bad request
   }
 });
+
+async function createUser(userData, response) {
+  const existingUser = await userStore.findOne({ username: userData.username });
+  if (existingUser) {
+    response.body = { error: 'User already exists' };
+    response.status = 400; // bad request
+    return;
+  }
+
+  // Insert the new user into the database
+  try {
+    const insertedUser = await userStore.insert(newUser);
+    response.body = { token: createToken(insertedUser) };
+    response.status = 201; // created
+  } catch (err) {
+    response.body = { error: err.message };
+    response.status = 400; // bad request
+  }
+}
