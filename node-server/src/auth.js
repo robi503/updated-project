@@ -49,10 +49,27 @@ authRouter.post('/login', async (ctx) => {
   const credentials = ctx.request.body;
   const user = await userStore.findOne({ username: credentials.username });
   if (user && credentials.password === user.password) {
-    ctx.response.body = { token: createToken(user) };
+    ctx.response.body = {
+      token: createToken(user),
+      providedCredentials: {
+        username: credentials.username,
+        password: credentials.password,
+      },
+      user: {
+        username: user.username,
+        // include other non-sensitive user information if necessary
+      }
+    };
     ctx.response.status = 201; // created
   } else {
-    ctx.response.body = { error: 'Invalid credentials' };
+    ctx.response.body = {
+      error: 'Invalid credentials',
+      providedCredentials: {
+        username: credentials.username,
+        password: credentials.password,
+      },
+    };
     ctx.response.status = 400; // bad request
   }
 });
+
