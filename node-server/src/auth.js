@@ -28,16 +28,22 @@ export const authRouter = new Router();
 authRouter.post('/signup', async (ctx) => {
   try {
     const user = ctx.request.body;
-    await userStore.insert(user);
-    ctx.response.body = { token: createToken(user) };
+    const existingUser = await userStore.findOne({ username: user.username });
+    if (existingUser) {
+      ctx.response.body = { error: 'User already exists' };
+      ctx.response.status = 400; // bad request
+      return;
+    }
+
+    const insertedUser = await userStore.insert(user);
+    ctx.response.body = { token: createToken(insertedUser) };
     ctx.response.status = 201; // created
   } catch (err) {
     ctx.response.body = { error: err.message };
     ctx.response.status = 400; // bad request
   }
-
-  await createUser(ctx.request.body, ctx.response)
 });
+
 
 authRouter.post('/login', async (ctx) => {
   const credentials = ctx.request.body;
@@ -50,22 +56,3 @@ authRouter.post('/login', async (ctx) => {
     ctx.response.status = 400; // bad request
   }
 });
-
-async function createUser(userData, response) {
-  const existingUser = await userStore.findOne({ username: userData.username });
-  if (existingUser) {
-    response.body = { error: 'User already exists' };
-    response.status = 400; // bad request
-    return;
-  }
-
-  // Insert the new user into the database
-  try {
-    const insertedUser = await userStore.insert(newUser);
-    response.body = { token: createToken(insertedUser) };
-    response.status = 201; // created
-  } catch (err) {
-    response.body = { error: err.message };
-    response.status = 400; // bad request
-  }
-}
