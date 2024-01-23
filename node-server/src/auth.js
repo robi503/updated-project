@@ -31,7 +31,7 @@ authRouter.post('/signup', async (ctx) => {
     const existingUser = await userStore.findOne({ username: user.username });
     if (existingUser) {
       ctx.response.body = { error: 'User already exists' };
-      ctx.response.status = 400; // bad request
+      ctx.response.status = 409; // bad request
       return;
     }
 
