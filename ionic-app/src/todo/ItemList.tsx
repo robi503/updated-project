@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { RouteComponentProps } from 'react-router';
 import {
+  IonButton,
   IonContent,
   IonFab,
   IonFabButton,
@@ -15,11 +16,15 @@ import { add } from 'ionicons/icons';
 import Item from './Item';
 import { getLogger } from '../core';
 import { ItemContext } from './ItemProvider';
+import { AuthContext } from '../auth';
+import { useNetwork } from '../net/useNetwork';
 
 const log = getLogger('ItemList');
 
 const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
   const { items, fetching, fetchingError } = useContext(ItemContext);
+  const { logout } = useContext(AuthContext);
+  const { networkStatus } = useNetwork();
   log('render', fetching);
   return (
     <IonPage>
@@ -44,6 +49,8 @@ const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
             <IonIcon icon={add}/>
           </IonFabButton>
         </IonFab>
+        <IonButton onClick={logout}>Logout</IonButton>
+        {!networkStatus.connected && <div>No network connection</div>}
       </IonContent>
     </IonPage>
   );

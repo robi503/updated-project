@@ -51,10 +51,6 @@ authRouter.post('/login', async (ctx) => {
   if (user && credentials.password === user.password) {
     ctx.response.body = {
       token: createToken(user),
-      providedCredentials: {
-        username: credentials.username,
-        password: credentials.password,
-      },
       user: {
         username: user.username,
         // include other non-sensitive user information if necessary
