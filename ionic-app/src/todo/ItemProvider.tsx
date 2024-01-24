@@ -4,6 +4,8 @@ import { getLogger } from '../core';
 import { ItemProps } from './ItemProps';
 import { createItem, getItems, newWebSocket, updateItem } from './itemApi';
 import { AuthContext } from '../auth';
+import { useNetwork } from '../net/useNetwork';
+import usePreferences from '../data/usePreferences';
 
 const log = getLogger('ItemProvider');
 
@@ -73,6 +75,8 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
   const { token } = useContext(AuthContext);
   const [state, dispatch] = useReducer(reducer, initialState);
   const { items, fetching, fetchingError, saving, savingError } = state;
+  const { networkStatus } = useNetwork();
+  const { getLocalData, saveData } = usePreferences();
   useEffect(getItemsEffect, [token]);
   useEffect(wsEffect, [token]);
   const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token]);
@@ -94,31 +98,62 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
     }
 
     async function fetchItems() {
-      try {
-        log('fetchItems started');
-        dispatch({ type: FETCH_ITEMS_STARTED });
-        const items = await getItems(token);
-        log('fetchItems succeeded');
-        if (!canceled) {
-          dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
+      if (!networkStatus.connected){
+        try{
+          log('fetchItems started locally');
+          dispatch({ type: FETCH_ITEMS_STARTED });
+          const username = localStorage.getItem('username');
+          const items = username ? await getLocalData(username) : [];
+          if (!canceled) {
+            dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
+          }
+        }catch (error) {
+          log('fetchItems locally failed', error);
+          dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
         }
-      } catch (error) {
-        log('fetchItems failed', error);
-        dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
+      }
+      else{
+        try {
+          log('fetchItems started');
+          dispatch({ type: FETCH_ITEMS_STARTED });
+          const items = await getItems(token);
+          log('fetchItems succeeded');
+          if (!canceled) {
+            dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
+          }
+        } catch (error) {
+          log('fetchItems failed', error);
+          dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
+        }
       }
     }
   }
 
   async function saveItemCallback(item: ItemProps) {
-    try {
-      log('saveItem started');
+    if (networkStatus.connected){
+      try {
+        log('saveItem started');
+        dispatch({ type: SAVE_ITEM_STARTED });
+        const savedItem = await (item._id ? updateItem(token, item) : createItem(token, item));
+        log('saveItem succeeded');
+        dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item: savedItem } });
+      } catch (error) {
+        log('saveItem failed');
+        dispatch({ type: SAVE_ITEM_FAILED, payload: { error } });
+      }
+  }
+    try{
+      log('saveItem started locally');
       dispatch({ type: SAVE_ITEM_STARTED });
-      const savedItem = await (item._id ? updateItem(token, item) : createItem(token, item));
-      log('saveItem succeeded');
-      dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item: savedItem } });
-    } catch (error) {
-      log('saveItem failed');
-      dispatch({ type: SAVE_ITEM_FAILED, payload: { error } });
+      const username = localStorage.getItem('username');
+      const savedItem = username ? await saveData(username, item) : null;
+      if (!savedItem){
+        log('saveItem locally failed');
+        dispatch({ type: FETCH_ITEMS_FAILED, payload: { savedItem } });
+      }
+    }catch (error) {
+      log('saveItem locally failed', error);
+      dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
     }
   }
 

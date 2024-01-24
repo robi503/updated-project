@@ -38,7 +38,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { isAuthenticated, isAuthenticating, authenticationError, pendingAuthentication, token } = state;
   const login = useCallback<LoginFn>(loginCallback, []);
   const logout = useCallback(() => {
-    localStorage.removeItem('token'); // Clear token from local storage
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
     setState({
       ...initialState,
       isAuthenticated: false,
@@ -94,7 +95,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
         log('authenticate succeeded');
-        localStorage.setItem('token', token); // Save token to local storage
+        localStorage.setItem('token', token);
+        if (username)
+          localStorage.setItem('username', username);
         setState({
           ...state,
           token,
