@@ -37,6 +37,12 @@ const usePreferences = () => {
     return item;
   };
 
+  const getItemById = async (key: string, itemId: string): Promise<ItemProps | undefined> => {
+    const result = await Preferences.get({ key });
+    const currentItems: ItemProps[] = result.value ? JSON.parse(result.value) : [];
+    return currentItems.find(item => item._id === itemId);
+  };
+
   const removeItem = async (key: string, itemId: string) => {
     const result = await Preferences.get({ key });
     const currentItems = result.value ? JSON.parse(result.value) : [];
@@ -68,7 +74,7 @@ const usePreferences = () => {
     await Preferences.set({ key: counterKey, value: '0' });
   };
 
-  return { data, saveData, getLocalData, removeItem, getCounterValue, resetCounter };
+  return { data, saveData, getLocalData, removeItem, getCounterValue, resetCounter, getItemById };
 };
 
 export default usePreferences;

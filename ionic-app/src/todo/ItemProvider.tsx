@@ -106,7 +106,7 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { items, fetching, fetchingError, syncing, syncingError, saving, savingError } = state;
   const { networkStatus } = useNetwork();
-  const { getLocalData, saveData, removeItem, getCounterValue, resetCounter } = usePreferences();
+  const { getLocalData, saveData, removeItem, getCounterValue, resetCounter, getItemById } = usePreferences();
   useEffect(getItemsEffect, [token, networkStatus]);
   useEffect(wsEffect, [token]);
   const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token, networkStatus]);
@@ -149,10 +149,7 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
           let items = await getItems(token);
           if(username){
             log('fetchItems succeeded');
-            const counterValue = await getCounterValue(username);
-            if(counterValue != '0'){
-                syncItems(localItems, items, username);   
-            }
+            syncItems(localItems, items, username);   
           }
           if (!canceled) {
             dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
@@ -181,6 +178,17 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
             items.push(savedItem);
         }
       }
+
+      for (const serverItem of items) {
+        if (serverItem._id) {
+          const localItem = await getItemById(username, serverItem._id);
+          if (!localItem) {
+            await deleteItemCallback(serverItem._id);
+            items = items.filter(item => item && item._id !== serverItem._id);
+          }
+        }
+      }
+
       resetCounter(username);
       log('syncing completed');
       dispatch({ type: SYNC_ITEMS_SUCCEEDED, payload: { items } });
@@ -274,8 +282,6 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
         }
         const { type, payload: item } = message;
         log(`ws message, item ${type}`);
-        if (type === 'created' || type === 'updated') {
-        }
       });
     }
     return () => {

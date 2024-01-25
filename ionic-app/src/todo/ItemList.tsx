@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { RouteComponentProps } from 'react-router';
 import {
   IonButton,
@@ -7,10 +7,12 @@ import {
   IonFabButton,
   IonHeader,
   IonIcon,
-  IonList, IonLoading,
+  IonList,
+  IonLoading,
   IonPage,
   IonTitle,
-  IonToolbar
+  IonToolbar,
+  IonSearchbar
 } from '@ionic/react';
 import { add } from 'ionicons/icons';
 import Item from './Item';
@@ -22,15 +24,19 @@ import { useNetwork } from '../net/useNetwork';
 const log = getLogger('ItemList');
 
 const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
-  const { items, fetching, fetchingError} = useContext(ItemContext);
+  const { items, fetching, fetchingError } = useContext(ItemContext);
   const { logout } = useContext(AuthContext);
   const { networkStatus } = useNetwork();
+  const [searchTerm, setSearchTerm] = useState('');
+
   log('render', fetching);
 
-  // Effect to refetch items when network status changes
   useEffect(() => {
-    items
-  }, [networkStatus.connected]); // React to changes in network status
+  }, [networkStatus.connected]);
+
+  const filteredItems = items?.filter(item =>
+    item.text.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <IonPage>
@@ -38,13 +44,22 @@ const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
         <IonToolbar>
           <IonTitle>Item List</IonTitle>
         </IonToolbar>
+        <IonToolbar>
+          <IonSearchbar 
+            value={searchTerm}
+            onIonInput={e => setSearchTerm(e.detail.value || '')}
+            animated={true}
+            placeholder="Search"
+          />
+        </IonToolbar>
       </IonHeader>
       <IonContent>
-        <IonLoading isOpen={fetching} message="Fetching items"/>
-        {items && (
+        <IonLoading isOpen={fetching} message="Fetching items" />
+        {filteredItems && (
           <IonList>
-            {items.map(({ _id, text }) =>
-              <Item key={_id } _id={_id} text={text} onEdit={id => history.push(`/item/${id}`)}/>)}
+            {filteredItems.map(({ _id, text }) =>
+              <Item key={_id} _id={_id} text={text} onEdit={id => history.push(`/item/${id}`)} />
+            )}
           </IonList>
         )}
         {fetchingError && (
@@ -52,7 +67,7 @@ const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
         )}
         <IonFab vertical="bottom" horizontal="end" slot="fixed">
           <IonFabButton onClick={() => history.push('/item')}>
-            <IonIcon icon={add}/>
+            <IonIcon icon={add} />
           </IonFabButton>
         </IonFab>
         <IonButton onClick={logout}>Logout</IonButton>

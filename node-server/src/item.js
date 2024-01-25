@@ -44,7 +44,6 @@ itemRouter.get('/', async (ctx) => {
 itemRouter.get('/:id', async (ctx) => {
   const userId = ctx.state.user._id;
   const item = await noteStore.findOne({ _id: ctx.params.id });
-  const response = ctx.response;
   if (item) {
     if (item.userId === userId) {
       ctx.response.body = item;
