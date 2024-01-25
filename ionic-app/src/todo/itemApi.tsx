@@ -8,11 +8,11 @@ export const getItems: (token: string) => Promise<ItemProps[]> = token => {
   return withLogs(axios.get(itemUrl, authConfig(token)), 'getItems');
 }
 
-export const createItem: (token: string, item: ItemProps) => Promise<ItemProps[]> = (token, item) => {
+export const createItem: (token: string, item: ItemProps) => Promise<ItemProps> = (token, item) => {
   return withLogs(axios.post(itemUrl, item, authConfig(token)), 'createItem');
 }
 
-export const updateItem: (token: string, item: ItemProps) => Promise<ItemProps[]> = (token, item) => {
+export const updateItem: (token: string, item: ItemProps) => Promise<ItemProps> = (token, item) => {
   return withLogs(axios.put(`${itemUrl}/${item._id}`, item, authConfig(token)), 'updateItem');
 }
 

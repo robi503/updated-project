@@ -15,6 +15,8 @@ export interface ItemsState {
   items?: ItemProps[],
   fetching: boolean,
   fetchingError?: Error | null,
+  syncing: boolean,
+  syncingError?: Error | null,
   saving: boolean,
   savingError?: Error | null,
   saveItem?: SaveItemFn,
@@ -28,11 +30,15 @@ interface ActionProps {
 const initialState: ItemsState = {
   fetching: false,
   saving: false,
+  syncing: false,
 };
 
 const FETCH_ITEMS_STARTED = 'FETCH_ITEMS_STARTED';
 const FETCH_ITEMS_SUCCEEDED = 'FETCH_ITEMS_SUCCEEDED';
 const FETCH_ITEMS_FAILED = 'FETCH_ITEMS_FAILED';
+const SYNC_ITEMS_STARTED = 'SYNC_ITEMS_STARTED';
+const SYNC_ITEMS_SUCCEEDED = 'SYNC_ITEMS_SUCCEEDED';
+const SYNC_ITEMS_FAILED = 'SYNC_ITEMS_FAILED';
 const SAVE_ITEM_STARTED = 'SAVE_ITEM_STARTED';
 const SAVE_ITEM_SUCCEEDED = 'SAVE_ITEM_SUCCEEDED';
 const SAVE_ITEM_FAILED = 'SAVE_ITEM_FAILED';
@@ -46,6 +52,12 @@ const reducer: (state: ItemsState, action: ActionProps) => ItemsState =
         return { ...state, items: payload.items, fetching: false };
       case FETCH_ITEMS_FAILED:
         return { ...state, fetchingError: payload.error, fetching: false };
+      case SYNC_ITEMS_STARTED:
+        return { ...state, syncing: true, syncingError: null };
+      case SYNC_ITEMS_SUCCEEDED:
+        return { ...state, items: payload.items, syncing: false };
+      case SYNC_ITEMS_FAILED:
+        return { ...state, syncingError: payload.error, syncing: false };
       case SAVE_ITEM_STARTED:
         return { ...state, savingError: null, saving: true };
       case SAVE_ITEM_SUCCEEDED:
@@ -74,13 +86,13 @@ interface ItemProviderProps {
 export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
   const { token } = useContext(AuthContext);
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { items, fetching, fetchingError, saving, savingError } = state;
+  const { items, fetching, fetchingError, syncing, syncingError, saving, savingError } = state;
   const { networkStatus } = useNetwork();
-  const { getLocalData, saveData } = usePreferences();
-  useEffect(getItemsEffect, [token]);
+  const { getLocalData, saveData, removeItem } = usePreferences();
+  useEffect(getItemsEffect, [token, networkStatus]);
   useEffect(wsEffect, [token]);
-  const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token]);
-  const value = { items, fetching, fetchingError, saving, savingError, saveItem };
+  const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token, networkStatus]);
+  const value = { items, fetching, fetchingError, syncing, syncingError, saving, savingError, saveItem };
   log('returns');
   return (
     <ItemContext.Provider value={value}>
@@ -97,27 +109,30 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
       canceled = true;
     }
 
-    async function fetchItems() {
+    async function fetchItems() {  
+      const username = localStorage.getItem('username');
+      const localItems = username ? await getLocalData(username) : [];
       if (!networkStatus.connected){
         try{
           log('fetchItems started locally');
           dispatch({ type: FETCH_ITEMS_STARTED });
-          const username = localStorage.getItem('username');
-          const items = username ? await getLocalData(username) : [];
-          if (!canceled) {
-            dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
-          }
+          const items = localItems;
+          dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
         }catch (error) {
           log('fetchItems locally failed', error);
           dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
         }
-      }
+      }      
       else{
         try {
           log('fetchItems started');
           dispatch({ type: FETCH_ITEMS_STARTED });
-          const items = await getItems(token);
+          let items = await getItems(token);
           log('fetchItems succeeded');
+          if(localStorage.getItem('counter') != '0'){
+            if(username)
+              syncItems(localItems, items, username);   
+          }
           if (!canceled) {
             dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
           }
@@ -129,33 +144,65 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
     }
   }
 
+  async function syncItems(localItems: ItemProps[], items: ItemProps[], username: string) {
+    try {
+      dispatch({ type: SYNC_ITEMS_STARTED });
+      log('syncing started');
+  
+      for (const localItem of localItems) {
+        if (localItem._id && localItem._id.startsWith('temp')) {
+          if (username) {
+            await removeItem(username, localItem._id);
+          }
+          const itemToSave = { ...localItem, _id: undefined };
+          const savedItem = await saveItemCallback(itemToSave);
+          if(savedItem)
+            items.push(savedItem);
+        }
+      }
+      localStorage.setItem('counter', '0');
+      log('syncing completed');
+      dispatch({ type: SYNC_ITEMS_SUCCEEDED, payload: { items } });
+      return items;
+    } catch (error) {
+      log('syncing failed', error);
+      dispatch({ type: SYNC_ITEMS_FAILED, payload: { error } });
+    }
+  }
+  
+
   async function saveItemCallback(item: ItemProps) {
-    if (networkStatus.connected){
+    if(networkStatus.connected){
       try {
         log('saveItem started');
         dispatch({ type: SAVE_ITEM_STARTED });
         const savedItem = await (item._id ? updateItem(token, item) : createItem(token, item));
+        item._id = savedItem._id;
         log('saveItem succeeded');
-        dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item: savedItem } });
+        dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item } });
       } catch (error) {
         log('saveItem failed');
         dispatch({ type: SAVE_ITEM_FAILED, payload: { error } });
       }
-  }
+    }
     try{
       log('saveItem started locally');
       dispatch({ type: SAVE_ITEM_STARTED });
       const username = localStorage.getItem('username');
       const savedItem = username ? await saveData(username, item) : null;
-      if (!savedItem){
+      if (savedItem) {
+        log('saveItem locally succeeded');
+        dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item: savedItem } });
+        return savedItem;
+      } else {
         log('saveItem locally failed');
-        dispatch({ type: FETCH_ITEMS_FAILED, payload: { savedItem } });
       }
     }catch (error) {
       log('saveItem locally failed', error);
-      dispatch({ type: FETCH_ITEMS_FAILED, payload: { error } });
+      dispatch({ type: SAVE_ITEM_FAILED, payload: { error } });
     }
   }
+
 
   function wsEffect() {
     let canceled = false;
@@ -169,7 +216,6 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
         const { type, payload: item } = message;
         log(`ws message, item ${type}`);
         if (type === 'created' || type === 'updated') {
-          dispatch({ type: SAVE_ITEM_SUCCEEDED, payload: { item } });
         }
       });
     }

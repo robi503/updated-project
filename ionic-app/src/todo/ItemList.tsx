@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { RouteComponentProps } from 'react-router';
 import {
   IonButton,
@@ -22,10 +22,16 @@ import { useNetwork } from '../net/useNetwork';
 const log = getLogger('ItemList');
 
 const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
-  const { items, fetching, fetchingError } = useContext(ItemContext);
+  const { items, fetching, fetchingError} = useContext(ItemContext);
   const { logout } = useContext(AuthContext);
   const { networkStatus } = useNetwork();
   log('render', fetching);
+
+  // Effect to refetch items when network status changes
+  useEffect(() => {
+    items
+  }, [networkStatus.connected]); // React to changes in network status
+
   return (
     <IonPage>
       <IonHeader>
@@ -38,7 +44,7 @@ const ItemList: React.FC<RouteComponentProps> = ({ history }) => {
         {items && (
           <IonList>
             {items.map(({ _id, text }) =>
-              <Item key={_id} _id={_id} text={text} onEdit={id => history.push(`/item/${id}`)}/>)}
+              <Item key={_id } _id={_id} text={text} onEdit={id => history.push(`/item/${id}`)}/>)}
           </IonList>
         )}
         {fetchingError && (
