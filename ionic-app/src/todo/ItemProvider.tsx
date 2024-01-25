@@ -88,7 +88,7 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const { items, fetching, fetchingError, syncing, syncingError, saving, savingError } = state;
   const { networkStatus } = useNetwork();
-  const { getLocalData, saveData, removeItem } = usePreferences();
+  const { getLocalData, saveData, removeItem, getCounterValue, resetCounter } = usePreferences();
   useEffect(getItemsEffect, [token, networkStatus]);
   useEffect(wsEffect, [token]);
   const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token, networkStatus]);
@@ -128,10 +128,12 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
           log('fetchItems started');
           dispatch({ type: FETCH_ITEMS_STARTED });
           let items = await getItems(token);
-          log('fetchItems succeeded');
-          if(localStorage.getItem('counter') != '0'){
-            if(username)
-              syncItems(localItems, items, username);   
+          if(username){
+            log('fetchItems succeeded');
+            const counterValue = await getCounterValue(username);
+            if(counterValue != '0'){
+                syncItems(localItems, items, username);   
+            }
           }
           if (!canceled) {
             dispatch({ type: FETCH_ITEMS_SUCCEEDED, payload: { items } });
@@ -160,7 +162,7 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
             items.push(savedItem);
         }
       }
-      localStorage.setItem('counter', '0');
+      resetCounter(username);
       log('syncing completed');
       dispatch({ type: SYNC_ITEMS_SUCCEEDED, payload: { items } });
       return items;

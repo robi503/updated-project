@@ -2,18 +2,17 @@ import { useState } from 'react';
 import { Preferences } from '@capacitor/preferences';
 import { ItemProps } from '../todo/ItemProps';
 
-// Initialize the counter in localStorage if it doesn't exist
-if (localStorage.getItem('counter') === null) {
-  localStorage.setItem('counter', '0');
-}
-
 const usePreferences = () => {
   const [data, setData] = useState<Record<string, ItemProps[]>>({});
 
-  const getNextTempId = () => {
-    let counter = parseInt(localStorage.getItem('counter') || '0');
+  const getCounterKey = (username: string) => `counter_${username}`;
+
+  const getNextTempId = async (username: string) => {
+    const counterKey = getCounterKey(username);
+    const result = await Preferences.get({ key: counterKey });
+    let counter = result.value ? parseInt(result.value) : 0;
     counter += 1;
-    localStorage.setItem('counter', counter.toString());
+    await Preferences.set({ key: counterKey, value: counter.toString() });
     return 'temp' + counter;
   };
 
@@ -22,7 +21,7 @@ const usePreferences = () => {
     const currentItems = result.value ? JSON.parse(result.value) : [];
 
     if (!item._id) {
-      item._id = getNextTempId();
+      item._id = await getNextTempId(key);
     }
     const index = currentItems.findIndex((i: { _id: string | undefined; }) => i._id === item._id);
     if (index !== -1) {
@@ -41,15 +40,15 @@ const usePreferences = () => {
   const removeItem = async (key: string, itemId: string) => {
     const result = await Preferences.get({ key });
     const currentItems = result.value ? JSON.parse(result.value) : [];
-
     const index = currentItems.findIndex((i: { _id: string | undefined; }) => i._id === itemId);
-    currentItems.splice(index, 1);
 
-    const dataToStore = JSON.stringify(currentItems);
-    await Preferences.set({ key, value: dataToStore });
-    setData({ ...data, [key]: currentItems });
+    if (index !== -1) {
+      currentItems.splice(index, 1);
+      const dataToStore = JSON.stringify(currentItems);
+      await Preferences.set({ key, value: dataToStore });
+      setData({ ...data, [key]: currentItems });
+    }
   };
-  
 
   const getLocalData = async (key: string): Promise<ItemProps[]> => {
     const result = await Preferences.get({ key });
@@ -58,7 +57,18 @@ const usePreferences = () => {
     return items;
   };
 
-  return { data, saveData, getLocalData,removeItem };
+  const getCounterValue = async (username: string) => {
+    const counterKey = getCounterKey(username);
+    const result = await Preferences.get({ key: counterKey });
+    return result.value ? result.value : '0';
+  };
+
+  const resetCounter = async (username: string) => {
+    const counterKey = getCounterKey(username);
+    await Preferences.set({ key: counterKey, value: '0' });
+  };
+
+  return { data, saveData, getLocalData, removeItem, getCounterValue, resetCounter };
 };
 
 export default usePreferences;
