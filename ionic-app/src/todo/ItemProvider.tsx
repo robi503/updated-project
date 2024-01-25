@@ -2,7 +2,7 @@ import React, { useCallback, useContext, useEffect, useReducer } from 'react';
 import PropTypes from 'prop-types';
 import { getLogger } from '../core';
 import { ItemProps } from './ItemProps';
-import { createItem, getItems, newWebSocket, updateItem } from './itemApi';
+import { createItem, deleteItemApi, getItems, newWebSocket, updateItem } from './itemApi';
 import { AuthContext } from '../auth';
 import { useNetwork } from '../net/useNetwork';
 import usePreferences from '../data/usePreferences';
@@ -10,6 +10,7 @@ import usePreferences from '../data/usePreferences';
 const log = getLogger('ItemProvider');
 
 type SaveItemFn = (item: ItemProps) => Promise<any>;
+type DeleteItemFn = (id: string) => Promise<any>;
 
 export interface ItemsState {
   items?: ItemProps[],
@@ -20,6 +21,7 @@ export interface ItemsState {
   saving: boolean,
   savingError?: Error | null,
   saveItem?: SaveItemFn,
+  deleteItem?: DeleteItemFn,
 }
 
 interface ActionProps {
@@ -42,6 +44,9 @@ const SYNC_ITEMS_FAILED = 'SYNC_ITEMS_FAILED';
 const SAVE_ITEM_STARTED = 'SAVE_ITEM_STARTED';
 const SAVE_ITEM_SUCCEEDED = 'SAVE_ITEM_SUCCEEDED';
 const SAVE_ITEM_FAILED = 'SAVE_ITEM_FAILED';
+const DELETE_ITEM_STARTED = 'DELETE_ITEM_STARTED';
+const DELETE_ITEM_SUCCEEDED = 'DELETE_ITEM_SUCCEEDED';
+const DELETE_ITEM_FAILED = 'DELETE_ITEM_FAILED';
 
 const reducer: (state: ItemsState, action: ActionProps) => ItemsState =
   (state, { type, payload }) => {
@@ -72,6 +77,19 @@ const reducer: (state: ItemsState, action: ActionProps) => ItemsState =
         return { ...state, items, saving: false };
       case SAVE_ITEM_FAILED:
         return { ...state, savingError: payload.error, saving: false };
+      case DELETE_ITEM_STARTED:
+          return { ...state, savingError: null, saving: true };
+      case DELETE_ITEM_SUCCEEDED:
+        if (!payload.itemId) {
+          console.error('DELETE_ITEM_SUCCEEDED called without a valid itemId in payload');
+          return state;
+        }
+        if(state.items){
+        const updatedItems = state.items.filter(item => item && item._id !== payload.itemId);
+        return { ...state, items: updatedItems, saving: false };
+        }        
+      case DELETE_ITEM_FAILED:
+        return { ...state, savingError: payload.error, saving: false };
       default:
         return state;
     }
@@ -92,7 +110,8 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
   useEffect(getItemsEffect, [token, networkStatus]);
   useEffect(wsEffect, [token]);
   const saveItem = useCallback<SaveItemFn>(saveItemCallback, [token, networkStatus]);
-  const value = { items, fetching, fetchingError, syncing, syncingError, saving, savingError, saveItem };
+  const deleteItem = useCallback<DeleteItemFn>(deleteItemCallback, [token, networkStatus]);
+  const value = { items, fetching, fetchingError, syncing, syncingError, saving, savingError, saveItem, deleteItem };
   log('returns');
   return (
     <ItemContext.Provider value={value}>
@@ -205,7 +224,45 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
     }
   }
 
-
+  async function deleteItemCallback(itemId: string) {
+    dispatch({ type: DELETE_ITEM_STARTED });
+    let deletedOnServer = false;
+  
+    if (networkStatus.connected) {
+      try {
+        log('deleteItem started on server');
+        await deleteItemApi(token, itemId); // Assuming deleteItemApi is your API call to delete the item on the server
+        log('deleteItem succeeded on server');
+        deletedOnServer = true;
+      } catch (error) {
+        log('deleteItem failed on server', error);
+        dispatch({ type: DELETE_ITEM_FAILED, payload: { error } });
+        return; // Exit if the server-side deletion fails
+      }
+    }
+  
+    try {
+      log('deleteItem started locally');
+      const username = localStorage.getItem('username');
+      if (username) {
+        await removeItem(username, itemId); // Assuming removeItem is your function to remove the item locally
+        log('deleteItem locally succeeded');
+        // Dispatch succeeded only after both server and local deletions are handled
+        dispatch({ type: DELETE_ITEM_SUCCEEDED, payload: { itemId } });
+      } else {
+        log('deleteItem locally failed: No username found');
+        if (!deletedOnServer) {
+          // Dispatch failed if not deleted on server and no username found
+          dispatch({ type: DELETE_ITEM_FAILED, payload: { error: new Error('No username found for local deletion') } });
+        }
+      }
+    } catch (error) {
+      log('deleteItem locally failed', error);
+      dispatch({ type: DELETE_ITEM_FAILED, payload: { error } });
+    }
+  }
+  
+  
   function wsEffect() {
     let canceled = false;
     log('wsEffect - connecting');

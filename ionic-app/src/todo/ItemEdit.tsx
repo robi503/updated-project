@@ -22,7 +22,7 @@ interface ItemEditProps extends RouteComponentProps<{
 }> {}
 
 const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
-  const { items, saving, savingError, saveItem } = useContext(ItemContext);
+  const { items, saving, savingError, saveItem, deleteItem } = useContext(ItemContext);
   const [text, setText] = useState('');
   const [item, setItem] = useState<ItemProps>();
   useEffect(() => {
@@ -38,27 +38,38 @@ const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
     const editedItem = item ? { ...item, text } : { text };
     saveItem && saveItem(editedItem).then(() => history.goBack());
   };
+  const handleDelete = () => {
+    const deletedItem = item ? { ...item, text } : { text };
+    if(deletedItem._id)
+      deleteItem && deleteItem(deletedItem._id).then(() => history.goBack());
+  };
   log('render');
   return (
-    <IonPage>
-      <IonHeader>
-        <IonToolbar>
-          <IonTitle>Edit</IonTitle>
-          <IonButtons slot="end">
-            <IonButton onClick={handleSave}>
-              Save
-            </IonButton>
-          </IonButtons>
-        </IonToolbar>
-      </IonHeader>
-      <IonContent>
-        <IonInput value={text} onIonChange={e => setText(e.detail.value || '')} />
-        <IonLoading isOpen={saving} />
-        {savingError && (
-          <div>{savingError.message || 'Failed to save item'}</div>
+<IonPage>
+  <IonHeader>
+    <IonToolbar>
+      <IonTitle>Edit</IonTitle>
+      <IonButtons slot="end">
+        <IonButton onClick={handleSave}>
+          Save
+        </IonButton>
+        {item && item._id && (
+          <IonButton onClick={handleDelete}>
+            Delete
+          </IonButton>
         )}
-      </IonContent>
-    </IonPage>
+      </IonButtons>
+    </IonToolbar>
+  </IonHeader>
+  <IonContent>
+    <IonInput value={text} onIonChange={e => setText(e.detail.value || '')} />
+    <IonLoading isOpen={saving} />
+    {savingError && (
+      <div>{savingError.message || 'Failed to save item'}</div>
+    )}
+  </IonContent>
+</IonPage>
+
   );
 };
 

@@ -16,6 +16,10 @@ export const updateItem: (token: string, item: ItemProps) => Promise<ItemProps> 
   return withLogs(axios.put(`${itemUrl}/${item._id}`, item, authConfig(token)), 'updateItem');
 }
 
+export const deleteItemApi: (token: string, itemId: string) => Promise<void> = (token, itemId) => {
+  return withLogs(axios.delete(`${itemUrl}/${itemId}`, authConfig(token)), 'deleteItem');
+}
+
 interface MessageData {
   type: string;
   payload: ItemProps;
