@@ -186,8 +186,12 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
             await deleteItemCallback(serverItem._id);
             items = items.filter(item => item && item._id !== serverItem._id);
           }
-        }
+          else if (localItem.text != serverItem.text){
+            serverItem.text = localItem.text;
+            await saveItemCallback(serverItem);
+          }
       }
+    }
 
       resetCounter(username);
       log('syncing completed');
