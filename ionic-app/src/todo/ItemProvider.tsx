@@ -180,6 +180,7 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
       }
 
       for (const serverItem of items) {
+        let changed = false;
         if (serverItem._id) {
           const localItem = await getItemById(username, serverItem._id);
           if (!localItem) {
@@ -188,8 +189,18 @@ export const ItemProvider: React.FC<ItemProviderProps> = ({ children }) => {
           }
           else if (localItem.text != serverItem.text){
             serverItem.text = localItem.text;
-            await saveItemCallback(serverItem);
+            changed = true;
           }
+          else if (localItem.photo){
+            log('has local photo')
+            if((localItem.photo.filepath != serverItem.photo?.filepath) || (localItem.photo.webviewPath != serverItem.photo?.webviewPath)){
+              log('photo changed')
+              serverItem.photo = localItem.photo;
+              changed = true;
+            }
+          }
+          if(changed)
+            await saveItemCallback(serverItem);
       }
     }
 

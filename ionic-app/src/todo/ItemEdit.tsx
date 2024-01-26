@@ -18,9 +18,11 @@ import { getLogger } from '../core';
 import { ItemContext } from './ItemProvider';
 import { RouteComponentProps } from 'react-router';
 import { ItemProps } from './ItemProps';
-import { camera } from 'ionicons/icons';
+import { camera, map } from 'ionicons/icons';
 import { useCamera } from './useCamera';
 import { useFilesystem } from './useFileSystem';
+import { Coordinates, useMyLocation } from '../location/useMyLocation';
+import MyMap from '../location/MyMap';
 
 
 const log = getLogger('ItemEdit');
@@ -37,12 +39,29 @@ export interface MyPhoto {
 const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
   const { items, saving, savingError, saveItem, deleteItem } = useContext(ItemContext);
   const { getPhoto } = useCamera();
-  const { readFile, writeFile, deleteFile } = useFilesystem();
+  const { writeFile, deleteFile } = useFilesystem();
   const [text, setText] = useState('');
+  const [showMap, setShowMap] = useState(false);
   const [photo, setPhoto] = useState<MyPhoto>();
   const [item, setItem] = useState<ItemProps>();
+  const [currentMapCenter, setCurrentMapCenter] = useState<Coordinates>();
+  const { coordinates } = useMyLocation();
+  const [markerCoordinates, setCoordinates] = useState<Coordinates>();
+  const toggleMap = () => {
+    setShowMap(!showMap);
+  };
+  useEffect(() => {
+    if (markerCoordinates) {
+      setCurrentMapCenter(markerCoordinates);
+    } else if (item?.coordinates) {
+      setCurrentMapCenter(item.coordinates);
+    } else {
+      if(coordinates)
+        setCurrentMapCenter(coordinates);
+    }
+  }, [markerCoordinates, item?.coordinates, coordinates]);
 
-
+  log('mapcenter',currentMapCenter);
   async function takePhoto() {
     const { base64String } = await getPhoto();
     const username = localStorage.getItem('username');
@@ -66,19 +85,27 @@ const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
       setText(item.text);
       if (item.photo) {
         setPhoto(item.photo);
+      if (item.coordinates){
+        setCoordinates(item.coordinates);
+      }
       }
     }
   }, [match.params.id, items]);
 
   
   const handleSave = async () => { 
-      const editedItem = item ? { ...item, text, photo } : { text, photo };
-      log('saving item: ', editedItem);
-      if (saveItem) {
-        await saveItem(editedItem);
-        history.goBack();
-      }
-
+    // Use markerCoordinates if available, otherwise fall back to coordinates
+    const coordinatesToSave = markerCoordinates || coordinates;
+  
+    const editedItem = item ? 
+      { ...item, text, photo, coordinates: coordinatesToSave } : 
+      { text, photo, coordinates: coordinatesToSave };
+  
+    log('saving item: ', editedItem);
+    if (saveItem) {
+      await saveItem(editedItem);
+      history.goBack();
+    }
   };
   
   const handleDelete = async () => {
@@ -99,6 +126,13 @@ const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
       }
     }
   };
+
+  const handleMapClick = (e: any) => {
+    const newCoordinates = { latitude: e.latitude, longitude: e.longitude };
+    log('coordinates', newCoordinates);
+    setCoordinates(newCoordinates);
+  };
+  
   
   log('render');
   return (
@@ -130,6 +164,18 @@ const ItemEdit: React.FC<ItemEditProps> = ({ history, match }) => {
       <IonIcon icon={camera }></IonIcon>
     </IonFabButton>
   </IonFab>
+  <IonFabButton onClick={toggleMap}>
+        <IonIcon icon={map}></IonIcon>
+      </IonFabButton>
+      {showMap && currentMapCenter &&(
+        <MyMap 
+            mapCenter={currentMapCenter} 
+            onMapClick={handleMapClick}
+            onMarkerClick={function (e: any): void {
+              throw new Error('Function not implemented.');
+            } }
+      />
+      )}
   </IonContent>
 </IonPage>
 
